@@ -93,28 +93,24 @@ const Help: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Hero Section */}
-      <div className="bg-indigo-700 text-white py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl mb-6">
-            How can we help you?
-          </h1>
-          <p className="text-xl text-indigo-100 mb-10">
+    <div className="min-h-screen bg-gray-50 pb-20 pt-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-12 text-center">
+          <p className="text-xl text-gray-500 mb-8 font-medium">
             Search our knowledge base or get in touch with our support team.
           </p>
-          <div className="relative max-w-2xl mx-auto">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search for articles, guides..."
-              className="w-full pl-12 pr-4 py-4 rounded-xl text-gray-900 focus:ring-2 focus:ring-white focus:outline-none shadow-lg"
-            />
+          <div className="relative max-w-2xl mx-auto group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-20 group-focus-within:opacity-40 transition duration-1000"></div>
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search for articles, guides..."
+                className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-xl text-gray-900 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none shadow-sm transition-all"
+              />
+            </div>
           </div>
         </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8">
         {/* Quick Links */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center">

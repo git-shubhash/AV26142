@@ -126,8 +126,7 @@ const Database: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-800">Detection Database</h2>
+        <div className="flex justify-end items-center">
           <div className="flex items-center gap-3">
             <div className="relative">
               <input

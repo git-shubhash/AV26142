@@ -1,17 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Camera, 
-  Database, 
-  BarChart3, 
-  MapPin, 
-  Bell, 
-  User, 
-  Settings, 
+import {
+  Bell,
+  User,
   HelpCircle,
-  Video,
-  Brain,
-  Shield,
-  Activity,
   Clock
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
@@ -33,27 +24,26 @@ const Header: React.FC = () => {
 
   // Format date and time
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
     });
   };
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit', 
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
       second: '2-digit',
-      hour12: true 
+      hour12: true
     });
   };
 
   // Navigation items mapping
   const pageNames: Record<string, string> = {
-    '/': 'Surveillance Command',
-    '/live': 'Live Monitoring',
+    '/': 'Live Surveillance',
+    '/live': 'Live Surveillance',
     '/database': 'Security Records',
     '/dashboard': 'Threat Analytics',
     '/map': 'Asset Locations',
@@ -64,101 +54,69 @@ const Header: React.FC = () => {
     '/help': 'Help & Support',
   };
 
-  // Icon mapping for each route
-  const pageIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-    '/': Camera,
-    '/live': Camera,
-    '/database': Database,
-    '/dashboard': BarChart3,
-    '/map': MapPin,
-    '/recordings': Video,
-    '/ai-assist': Brain,
-    '/profile': User,
-    '/settings': Settings,
-    '/help': HelpCircle,
-  };
-
   const getCurrentPageName = () => {
     return pageNames[location.pathname] || 'System Control';
   };
 
-  const getCurrentIcon = () => {
-    return pageIcons[location.pathname] || Shield;
-  };
-
   const currentPageName = getCurrentPageName();
-  const CurrentIcon = getCurrentIcon();
 
   return (
-    <header className="bg-white/80 backdrop-blur-md border-b border-gray-200/60 sticky top-0 z-40">
-      <div className="flex items-center justify-between px-8 py-3.5">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200 transition-transform hover:scale-105">
-              <CurrentIcon className="h-5 w-5 text-white" />
-            </div>
-            <div className="flex flex-col">
-              <h2 className="font-bold text-gray-900 text-sm tracking-tight leading-none mb-1">{currentPageName}</h2>
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">System Active</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="hidden lg:flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
-            <Activity size={12} className="text-indigo-500" />
-            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Network Latency: 24ms</span>
-          </div>
+    <header className="bg-white/90 backdrop-blur-md border-b border-gray-200 sticky top-0 z-40 shadow-sm shadow-black/5">
+      <div className="flex items-center justify-between px-6 py-3">
+        <div className="flex items-center gap-8">
+          <h1 className="text-xl font-black text-gray-900 tracking-tight">{currentPageName}</h1>
         </div>
 
-        <div className="flex items-center gap-6">
-          {/* Date and Time */}
-          <div className="hidden lg:flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-lg border border-indigo-100">
-            <Clock size={14} className="text-indigo-600" />
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-indigo-900 leading-none">{formatTime(currentTime)}</span>
-              <span className="text-[10px] font-medium text-indigo-600 uppercase tracking-wide">{formatDate(currentTime)}</span>
-            </div>
+        <div className="flex items-center gap-4 sm:gap-8">
+          {/* Real-time Clock */}
+          <div className="hidden md:flex flex-col items-end pr-4 border-r border-gray-200">
+             <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-gray-900 tracking-tighter tabular-nums">{formatTime(currentTime)}</span>
+                <Clock size={12} className="text-gray-400" />
+             </div>
+             <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.1em]">{formatDate(currentTime)}</span>
           </div>
 
           <div className="flex items-center gap-3">
             {/* Notifications */}
-            <button className="relative p-2.5 bg-gray-50 text-gray-500 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-transparent hover:border-indigo-100 group">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white group-hover:scale-110 transition-transform"></span>
+            <button className="relative p-2.5 bg-gray-50 text-gray-500 rounded-2xl hover:bg-gray-100 hover:text-gray-900 transition-all border border-gray-100 hover:border-gray-200 group">
+              <Bell className="h-5 w-5 transition-transform group-hover:rotate-12" />
+              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(244,63,94,0.4)]"></span>
             </button>
 
             {/* Help */}
-            <button 
+            <button
               onClick={() => window.location.href = '/help'}
-              className="p-2.5 bg-gray-50 text-gray-500 rounded-xl hover:bg-gray-100 transition-all border border-transparent"
+              className="hidden sm:flex p-2.5 bg-gray-50 text-gray-500 rounded-2xl hover:bg-gray-100 hover:text-gray-900 transition-all border border-gray-100 hover:border-gray-200 group"
             >
-              <HelpCircle className="h-5 w-5" />
+              <HelpCircle className="h-5 w-5 transition-transform group-hover:scale-110" />
             </button>
           </div>
 
-          {/* User Profile */}
-          <div className="flex items-center gap-4 pl-6 border-l border-gray-200">
-            <div className="flex flex-col items-end hidden sm:flex">
-              <span className="text-xs font-bold text-gray-900 leading-none mb-1">
+          {/* User Account */}
+          <div className="flex items-center gap-4 pl-4 border-l border-gray-200">
+            <div className="flex flex-col items-end hidden lg:flex">
+              <span className="text-xs font-black text-gray-900 tracking-tight leading-none mb-1">
                 {user.name || user.username || 'Administrator'}
               </span>
-              <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">
-                Master Security
+              <span className="text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em] opacity-80">
+                Security Ops
               </span>
             </div>
-            <button className="relative group" onClick={() => window.location.href = '/settings'}>
-              <div className="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-lg transition-transform group-hover:scale-105 group-active:scale-95 border-2 border-white">
-                {user.profilePhoto ? (
-                  <img src={user.profilePhoto} alt="Profile" className="w-full h-full object-cover rounded-[10px]" />
-                ) : (
-                  <span className="font-bold text-sm tracking-tighter">
-                    {user.username ? user.username.substring(0, 2).toUpperCase() : 'AD'}
-                  </span>
-                )}
+            
+            <button className="relative group focus:outline-none" onClick={() => window.location.href = '/settings'}>
+              <div className="w-11 h-11 p-0.5 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 transition-all duration-500 group-hover:rotate-[360deg] shadow-lg shadow-indigo-500/10">
+                <div className="w-full h-full bg-white rounded-[14px] flex items-center justify-center overflow-hidden border-2 border-white">
+                  {user.profilePhoto ? (
+                    <img src={user.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                       <User size={20} className="text-gray-400" />
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white shadow-lg shadow-emerald-500/20"></div>
             </button>
           </div>
         </div>

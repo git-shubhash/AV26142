@@ -285,7 +285,7 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 p-6 bg-gray-50">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">Analytics Dashboard</h1>
+      {/* Title moved to top bar */}
 
       {/* Section 1: KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">

@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  Settings, 
-  LogOut, 
-  Menu, 
-  X, 
-  ChevronLeft, 
-  ChevronRight,
+import {
+  Settings,
+  LogOut,
+  Menu,
+  X,
   BarChart3,
-  Search,
   HelpCircle,
   Camera,
   Database,
@@ -44,7 +41,6 @@ const navigationItems: NavigationItem[] = [
 
 export function Sidebar({ className = "" }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
@@ -58,14 +54,13 @@ export function Sidebar({ className = "" }: SidebarProps) {
         setIsOpen(false);
       }
     };
-    
+
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const toggleSidebar = () => setIsOpen(!isOpen);
-  const toggleCollapse = () => setIsCollapsed(!isCollapsed);
 
   const handleItemClick = (href: string) => {
     if (window.innerWidth < 768) {
@@ -100,17 +95,17 @@ export function Sidebar({ className = "" }: SidebarProps) {
         className="fixed top-6 left-6 z-50 p-3 rounded-lg bg-slate-800 shadow-lg border border-slate-700 md:hidden hover:bg-slate-700 transition-all duration-200 hover:scale-105"
         aria-label="Toggle sidebar"
       >
-        {isOpen ? 
-          <X className="h-5 w-5 text-indigo-400" /> : 
+        {isOpen ?
+          <X className="h-5 w-5 text-indigo-400" /> :
           <Menu className="h-5 w-5 text-indigo-400" />
         }
       </button>
 
       {/* Mobile overlay */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 md:hidden transition-opacity duration-300" 
-          onClick={toggleSidebar} 
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 md:hidden transition-opacity duration-300"
+          onClick={toggleSidebar}
         />
       )}
 
@@ -119,58 +114,17 @@ export function Sidebar({ className = "" }: SidebarProps) {
         className={`
           fixed top-0 left-0 h-full bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-r border-slate-700/50 z-40 transition-all duration-300 ease-in-out flex flex-col shadow-2xl
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
-          ${isCollapsed ? "w-20" : "w-64 max-w-[85vw]"}
+          w-20
           md:translate-x-0 md:static md:z-auto md:max-w-none
           ${className}
         `}
       >
-        {/* Header with logo and collapse button */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/50 bg-slate-900/50 backdrop-blur-sm">
-          {!isCollapsed && (
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 via-purple-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/20">
-                <img src="/cctv-camera.png" alt="VisionGuard" className="w-6 h-6 object-contain" />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-semibold text-white text-base">VisionGuard</span>
-                <span className="text-xs text-slate-400">Security Dashboard</span>
-              </div>
-            </div>
-          )}
-
-          {isCollapsed && (
-            <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 via-purple-500 to-indigo-600 rounded-lg flex items-center justify-center mx-auto shadow-lg shadow-purple-500/20">
-              <img src="/cctv-camera.png" alt="VisionGuard" className="w-6 h-6 object-contain" />
-            </div>
-          )}
-
-          {/* Desktop collapse button */}
-          <button
-            onClick={toggleCollapse}
-            className="hidden md:flex p-1.5 rounded-md hover:bg-slate-700/50 transition-all duration-200 group"
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {isCollapsed ? (
-              <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-indigo-400 transition-colors" />
-            ) : (
-              <ChevronLeft className="h-4 w-4 text-slate-400 group-hover:text-indigo-400 transition-colors" />
-            )}
-          </button>
-        </div>
-
-        {/* Search Bar */}
-        {!isCollapsed && (
-          <div className="px-4 py-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-500" />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="w-full pl-9 pr-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-md text-sm placeholder-slate-500 text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all duration-200 hover:border-slate-600"
-              />
-            </div>
+        {/* Header with logo */}
+        <div className="flex items-center justify-center py-4 border-b border-slate-700/50 bg-slate-900/50 backdrop-blur-sm relative transition-all duration-300 min-h-[73px]">
+          <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 via-purple-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/20 flex-shrink-0">
+            <img src="/cctv-camera.png" alt="VisionGuard" className="w-6 h-6 object-contain" />
           </div>
-        )}
+        </div>
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-2 overflow-y-auto">
@@ -184,46 +138,28 @@ export function Sidebar({ className = "" }: SidebarProps) {
                   <button
                     onClick={() => handleItemClick(item.href)}
                     className={`
-                      w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-lg text-left transition-all duration-200 group relative
+                      w-full flex items-center justify-center px-2 py-2.5 rounded-lg text-left transition-all duration-200 group relative
                       ${isActive
                         ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-indigo-300 border-l-2 border-indigo-400 shadow-lg shadow-indigo-500/10"
                         : "text-slate-400 hover:bg-slate-700/50 hover:text-white hover:translate-x-1"
                       }
-                      ${isCollapsed ? "justify-center px-2" : ""}
                     `}
-                    title={isCollapsed ? item.name : undefined}
+                    title={item.name}
                   >
                     <div className="flex items-center justify-center min-w-[24px]">
                       <Icon
                         className={`
                           h-5 w-5 flex-shrink-0 transition-all duration-200
-                          ${isActive 
-                            ? "text-indigo-400 scale-110" 
+                          ${isActive
+                            ? "text-indigo-400 scale-110"
                             : "text-slate-500 group-hover:text-indigo-400 group-hover:scale-110"
                           }
                         `}
                       />
                     </div>
-                    
-                    {!isCollapsed && (
-                      <div className="flex items-center justify-between w-full">
-                        <span className={`text-sm transition-all duration-200 ${isActive ? "font-semibold text-white" : "font-normal"}`}>{item.name}</span>
-                        {item.badge && (
-                          <span className={`
-                            px-1.5 py-0.5 text-xs font-medium rounded-full transition-all duration-200
-                            ${isActive
-                              ? "bg-indigo-500/30 text-indigo-300 border border-indigo-400/50"
-                              : "bg-slate-700/50 text-slate-400 border border-slate-600/50"
-                            }
-                          `}>
-                            {item.badge}
-                          </span>
-                        )}
-                      </div>
-                    )}
 
                     {/* Badge for collapsed state */}
-                    {isCollapsed && item.badge && (
+                    {item.badge && (
                       <div className="absolute top-1 right-1 w-4 h-4 flex items-center justify-center rounded-full bg-indigo-500 border-2 border-slate-800 shadow-lg">
                         <span className="text-[10px] font-medium text-white">
                           {parseInt(item.badge) > 9 ? '9+' : item.badge}
@@ -232,22 +168,19 @@ export function Sidebar({ className = "" }: SidebarProps) {
                     )}
 
                     {/* Tooltip for collapsed state */}
-                    {isCollapsed && (
-                      <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 shadow-xl border border-slate-700">
-                        {item.name}
-                        {item.badge && (
-                          <span className="ml-1.5 px-1 py-0.5 bg-indigo-500/30 text-indigo-300 rounded-full text-[10px] border border-indigo-400/50">
-                            {item.badge}
-                          </span>
-                        )}
-                        <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-1.5 h-1.5 bg-slate-800 rotate-45 border-l border-t border-slate-700" />
-                      </div>
-                    )}
+                    <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 shadow-xl border border-slate-700">
+                      {item.name}
+                      {item.badge && (
+                        <span className="ml-1.5 px-1 py-0.5 bg-indigo-500/30 text-indigo-300 rounded-full text-[10px] border border-indigo-400/50">
+                          {item.badge}
+                        </span>
+                      )}
+                      <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-1.5 h-1.5 bg-slate-800 rotate-45 border-l border-t border-slate-700" />
+                    </div>
                   </button>
                 </li>
               );
             })}
-
           </ul>
         </nav>
 
@@ -257,28 +190,18 @@ export function Sidebar({ className = "" }: SidebarProps) {
           <div className="p-3">
             <button
               onClick={handleLogout}
-              className={`
-                w-full flex items-center rounded-lg text-left transition-all duration-200 group relative
-                text-red-400 hover:bg-red-500/10 hover:text-red-300 hover:translate-x-1
-                ${isCollapsed ? "justify-center p-2.5" : "space-x-2.5 px-3 py-2.5"}
-              `}
-              title={isCollapsed ? "Logout" : undefined}
+              className="w-full flex items-center justify-center p-2.5 rounded-lg text-left transition-all duration-200 group relative text-red-400 hover:bg-red-500/10 hover:text-red-300 hover:translate-x-1"
+              title="Logout"
             >
               <div className="flex items-center justify-center min-w-[24px]">
                 <LogOut className="h-5 w-5 flex-shrink-0 text-red-400 group-hover:text-red-300 group-hover:scale-110 transition-all duration-200" />
               </div>
-              
-              {!isCollapsed && (
-                <span className="text-sm font-medium">Logout</span>
-              )}
-              
+
               {/* Tooltip for collapsed state */}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 shadow-xl border border-slate-700">
-                  Logout
-                  <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-1.5 h-1.5 bg-slate-800 rotate-45 border-l border-t border-slate-700" />
-                </div>
-              )}
+              <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 shadow-xl border border-slate-700">
+                Logout
+                <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-1.5 h-1.5 bg-slate-800 rotate-45 border-l border-t border-slate-700" />
+              </div>
             </button>
           </div>
         </div>

@@ -317,16 +317,14 @@ const AIAssist: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 scrollbar-thin">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center max-w-2xl mx-auto">
-                <div className="relative mb-8">
+                <div className="relative mb-8 mt-10">
                   <div className="absolute inset-0 bg-indigo-400 blur-3xl opacity-20 rounded-full"></div>
                   <div className="relative w-24 h-24 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-3xl flex items-center justify-center shadow-2xl rotate-3 hover:rotate-0 transition-transform duration-500">
                     <Sparkles className="text-white w-12 h-12" />
                   </div>
                 </div>
-                <h2 className="text-3xl font-extrabold text-gray-900 mb-4 tracking-tight">
-                  Intelligence at your fingertips
-                </h2>
-                <p className="text-lg text-gray-600 mb-10 leading-relaxed">
+                {/* Title moved to top bar */}
+                <p className="text-lg text-gray-600 mb-10 leading-relaxed font-medium">
                   Analyze detection patterns, identify security anomalies, and get deep insights into your surveillance data using advanced AI.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">

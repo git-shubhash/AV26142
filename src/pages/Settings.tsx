@@ -414,9 +414,8 @@ const Settings: React.FC = () => {
                 {/* Profile Tab */}
                 {activeTab === 'profile' && (
                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="mb-8">
-                      <h2 className="text-2xl font-bold text-gray-900">Personal Information</h2>
-                      <p className="text-gray-500">Update your personal details and profile picture.</p>
+                    <div className="mb-8 border-b border-gray-100 pb-4">
+                      <p className="text-gray-500 text-sm font-medium">Update your personal details and profile picture.</p>
                     </div>
                     
                     {profileStatus.type && (
@@ -539,9 +538,8 @@ const Settings: React.FC = () => {
                 {/* Security Tab */}
                 {activeTab === 'security' && (
                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="mb-8">
-                      <h2 className="text-2xl font-bold text-gray-900">Security</h2>
-                      <p className="text-gray-500">Update your password to keep your account secure.</p>
+                    <div className="mb-8 border-b border-gray-100 pb-4">
+                      <p className="text-gray-500 text-sm font-medium">Update your password to keep your account secure.</p>
                     </div>
                     
                     {passwordStatus.type && (
@@ -652,10 +650,9 @@ const Settings: React.FC = () => {
                 {/* Alert Settings Tab */}
                 {activeTab === 'alerts' && (
                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 border-b border-gray-100 pb-6">
                       <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Alert Configuration</h2>
-                        <p className="text-gray-500">Choose how you want to be notified for each detection type.</p>
+                        <p className="text-gray-500 text-sm font-medium">Choose how you want to be notified for each detection type.</p>
                       </div>
                       <div className="flex gap-3">
                         <button

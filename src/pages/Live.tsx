@@ -1138,8 +1138,7 @@ const Live: React.FC = () => {
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-gray-900">Live Surveillance</h2>
-          <p className="text-gray-600 mt-1">Monitor and detect objects in real-time</p>
+          {/* Title moved to top bar */}
         </div>
         <div className="flex items-center gap-3">
           {cameras.length > 0 && (
