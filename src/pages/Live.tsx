@@ -30,7 +30,7 @@ const LocationMarker: React.FC<LocationMarkerProps> = ({ onLocationSelect }) => 
 
 const MapUpdater: React.FC<{ center?: [number, number] }> = ({ center }) => {
   const map = useMap();
-  
+
   useEffect(() => {
     if (center) {
       map.setView(center, 15);
@@ -61,6 +61,7 @@ const Live: React.FC = () => {
   const [showOverlay, setShowOverlay] = useState<boolean>(true);
   const [recentDetections, setRecentDetections] = useState<Detection[]>([]);
   const [loadingDetections, setLoadingDetections] = useState<boolean>(false);
+  const [panicStats, setPanicStats] = useState<Record<string, { people_count: number; max_speed: number; status: string; is_panic: boolean }>>({});
   const [isROIMarking, setIsROIMarking] = useState<boolean>(false);
   const [polygonPoints, setPolygonPoints] = useState<[number, number][]>([]);
   const [savedPolygonPoints, setSavedPolygonPoints] = useState<[number, number][]>([]);
@@ -73,7 +74,7 @@ const Live: React.FC = () => {
   const socketRef = useRef<any>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
   const fullscreenCameraRef = useRef<string | null>(null);
-  
+
   // Automatic recording for active cameras
   const cameraRecordersRef = useRef<Map<string, MediaRecorder>>(new Map());
   const cameraCanvasesRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
@@ -119,7 +120,7 @@ const Live: React.FC = () => {
 
       const videoElement = document.getElementById(`video-${data.camera_id}`) as HTMLImageElement;
       const fullscreenElement = document.getElementById(`video-${data.camera_id}-fullscreen`) as HTMLImageElement;
-      
+
       // Always update frames, but use requestAnimationFrame for better performance
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
@@ -134,12 +135,17 @@ const Live: React.FC = () => {
       });
     };
 
-    socketRef.current.on('video_frame', (data: { camera_id: string; frame: string; detections: any[] }) => {
+    socketRef.current.on('video_frame', (data: { camera_id: string; frame: string; detections: any[]; panic_stats?: any }) => {
       updateVideoFrame(data);
+
+      // Update panic stats if present
+      if (data.panic_stats) {
+        setPanicStats(prev => ({ ...prev, [data.camera_id]: data.panic_stats }));
+      }
 
       if (data.detections?.length > 0) {
         console.log('Detections:', data.detections);
-        
+
         // Update recent detections in real-time if this camera is in fullscreen
         const currentFullscreenCamera = fullscreenCameraRef.current;
         if (currentFullscreenCamera === data.camera_id && data.detections?.length > 0) {
@@ -155,12 +161,12 @@ const Live: React.FC = () => {
             label: det.label,
             image_url: det.image_url ? `http://localhost:5000${det.image_url}` : '',
           }));
-          
+
           // Add new detections to the top of the list, remove duplicates, and limit to 20
           setRecentDetections(prev => {
             const combined = [...newDetections, ...prev];
             // Remove duplicates based on _id
-            const unique = combined.filter((det, index, self) => 
+            const unique = combined.filter((det, index, self) =>
               index === self.findIndex(d => d._id === det._id)
             );
             return unique.slice(0, 20);
@@ -180,7 +186,7 @@ const Live: React.FC = () => {
         }
       }
       // Try to find in availableCameras list
-      const availableIndex = availableCameras.findIndex(avail => 
+      const availableIndex = availableCameras.findIndex(avail =>
         avail.toLowerCase() === cameraName.toLowerCase()
       );
       if (availableIndex >= 0) {
@@ -195,7 +201,7 @@ const Live: React.FC = () => {
         camera_id: camera.id,
         model_name: camera.model.toLowerCase().replace(/\s+/g, '_'),
       };
-      
+
       // Check if camera has RTSP URL
       if ((camera as any).rtspUrl) {
         streamData.rtsp_url = (camera as any).rtspUrl;
@@ -206,7 +212,7 @@ const Live: React.FC = () => {
           streamData.camera_index = cameraIndex;
         }
       }
-      
+
       return streamData;
     };
 
@@ -251,13 +257,13 @@ const Live: React.FC = () => {
       cameraChunksRef.current.clear();
       cameraAnimationRefs.current.forEach(animId => cancelAnimationFrame(animId));
       cameraAnimationRefs.current.clear();
-      
+
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
       }
-      
+
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      
+
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
@@ -325,7 +331,7 @@ const Live: React.FC = () => {
       ...prev,
       location: `${lat},${lng}`,
     }));
-    
+
     // If displayName is provided, use it; otherwise, reverse geocode to get the name
     if (displayName) {
       setLocationName(displayName);
@@ -333,7 +339,7 @@ const Live: React.FC = () => {
       const name = await reverseGeocode(lat, lng);
       setLocationName(name);
     }
-    
+
     setSearchResults([]);
     setLocationSearch('');
   };
@@ -350,12 +356,12 @@ const Live: React.FC = () => {
         model: newCamera.model,
         isActive: true,
       };
-      
+
       // Add RTSP URL if provided
       if (newCamera.rtspUrl) {
         cameraData.rtspUrl = newCamera.rtspUrl;
       }
-      
+
       addCamera(cameraData);
 
       // Save camera to database with coordinates
@@ -370,14 +376,14 @@ const Live: React.FC = () => {
           camera_id: cameraId,
           model_name: newCamera.model.toLowerCase().replace(/\s+/g, '_'),
         };
-        
+
         // Add either camera_index or rtsp_url
         if (newCamera.rtspUrl) {
           streamData.rtsp_url = newCamera.rtspUrl;
         } else if (newCamera.cameraSource) {
           streamData.camera_index = parseInt(newCamera.cameraSource.split(' ')[1]) - 1;
         }
-        
+
         socketRef.current.emit('start_stream', streamData);
         // Start recording after stream starts
         setTimeout(() => startAutoRecording(cameraId, newCamera.name), 2000);
@@ -394,7 +400,7 @@ const Live: React.FC = () => {
   const handleOpenEditCamera = (cameraId: string) => {
     const camera = cameras.find(c => c.id === cameraId);
     if (!camera) return;
-    
+
     setEditingCamera(cameraId);
     const hasRtspUrl = (camera as any).rtspUrl;
     setCameraSourceType(hasRtspUrl ? 'rtsp' : 'local');
@@ -403,14 +409,14 @@ const Live: React.FC = () => {
       rtspUrl: (camera as any).rtspUrl || '',
       name: camera.name,
       location: camera.location,
-      model: (camera as any).models && (camera as any).models.length > 0 
-        ? (camera as any).models[0] 
+      model: (camera as any).models && (camera as any).models.length > 0
+        ? (camera as any).models[0]
         : camera.model || '',
-      models: (camera as any).models && (camera as any).models.length > 0 
-        ? (camera as any).models 
+      models: (camera as any).models && (camera as any).models.length > 0
+        ? (camera as any).models
         : (camera.model ? [camera.model] : []),
     });
-    
+
     // Parse location if it exists
     if (camera.location) {
       try {
@@ -426,20 +432,20 @@ const Live: React.FC = () => {
         console.error('Error parsing location:', e);
       }
     }
-    
+
     setLocationName(camera.locationName || '');
   };
 
   const handleEditCamera = async () => {
     if (!editingCamera) return;
-    
+
     const camera = cameras.find(c => c.id === editingCamera);
     if (!camera) return;
 
-    const selectedModels = (newCamera.models && newCamera.models.length > 0) 
-      ? newCamera.models 
+    const selectedModels = (newCamera.models && newCamera.models.length > 0)
+      ? newCamera.models
       : (newCamera.model ? [newCamera.model] : (camera.model ? [camera.model] : []));
-    
+
     if (!newCamera.name || !newCamera.location || selectedModels.length === 0) {
       alert('Please fill in all required fields');
       return;
@@ -454,7 +460,7 @@ const Live: React.FC = () => {
       models: selectedModels,
       isActive: camera.isActive,
     };
-    
+
     // Include RTSP URL if it exists
     if (newCamera.rtspUrl) {
       updatedCameraData.rtspUrl = newCamera.rtspUrl;
@@ -477,7 +483,7 @@ const Live: React.FC = () => {
           camera_id: camera.id,
           model_name: selectedModels[0].toLowerCase().replace(/\s+/g, '_'),
         };
-        
+
         // Check if camera has RTSP URL
         if ((camera as any).rtspUrl) {
           streamData.rtsp_url = (camera as any).rtspUrl;
@@ -487,7 +493,7 @@ const Live: React.FC = () => {
             streamData.camera_index = cameraIndex;
           }
         }
-        
+
         socketRef.current.emit('start_stream', streamData);
       }, 500);
     }
@@ -520,7 +526,7 @@ const Live: React.FC = () => {
             camera_id: id,
             model_name: camera.model.toLowerCase().replace(/\s+/g, '_'),
           };
-          
+
           // Check if camera has RTSP URL
           if ((camera as any).rtspUrl) {
             streamData.rtsp_url = (camera as any).rtspUrl;
@@ -531,7 +537,7 @@ const Live: React.FC = () => {
               streamData.camera_index = parseInt(match[1]) - 1;
             }
           }
-          
+
           socketRef.current.emit('start_stream', streamData);
           // Start recording when camera becomes active
           setTimeout(() => startAutoRecording(id, camera.name), 2000);
@@ -615,21 +621,21 @@ const Live: React.FC = () => {
 
       // Reduced frame rate from 30 to 15 fps for smaller file size
       const canvasStream = canvas.captureStream(15);
-      
+
       const mediaRecorder = new MediaRecorder(canvasStream, {
-        mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
-          ? 'video/webm;codecs=vp9' 
+        mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+          ? 'video/webm;codecs=vp9'
           : 'video/webm',
         videoBitsPerSecond: 500000  // 500 kbps bitrate for compression
       });
-      
+
       recordedChunksRef.current = [];
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
         }
       };
-      
+
       mediaRecorder.onstop = () => {
         const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
@@ -640,13 +646,13 @@ const Live: React.FC = () => {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        
+
         canvasStream.getTracks().forEach(track => track.stop());
         if (recordingAnimationRef.current) {
           cancelAnimationFrame(recordingAnimationRef.current);
         }
       };
-      
+
       // Draw frames continuously
       const drawFrame = () => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording' && imgElement.src) {
@@ -654,7 +660,7 @@ const Live: React.FC = () => {
           recordingAnimationRef.current = requestAnimationFrame(drawFrame);
         }
       };
-      
+
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start();
       setIsRecording(true);
@@ -700,16 +706,16 @@ const Live: React.FC = () => {
 
       // Reduced frame rate from 30 to 15 fps for smaller file size
       const canvasStream = canvas.captureStream(15);
-      
+
       const mediaRecorder = new MediaRecorder(canvasStream, {
-        mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
-          ? 'video/webm;codecs=vp9' 
+        mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+          ? 'video/webm;codecs=vp9'
           : 'video/webm',
         videoBitsPerSecond: 500000  // 500 kbps bitrate for compression
       });
-      
+
       cameraChunksRef.current.set(cameraId, []);
-      
+
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           const chunks = cameraChunksRef.current.get(cameraId) || [];
@@ -717,20 +723,20 @@ const Live: React.FC = () => {
           cameraChunksRef.current.set(cameraId, chunks);
         }
       };
-      
+
       mediaRecorder.onstop = async () => {
         const chunks = cameraChunksRef.current.get(cameraId) || [];
         if (chunks.length === 0) return;
-        
+
         const blob = new Blob(chunks, { type: 'video/webm' });
-        
+
         // Upload to backend
         try {
           const formData = new FormData();
           formData.append('video', blob, `recording-${cameraId}-${Date.now()}.webm`);
           formData.append('camera_id', cameraId);
           formData.append('camera_name', cameraName);
-          
+
           await axios.post('http://localhost:5000/api/recordings/upload', formData, {
             headers: {
               'Content-Type': 'multipart/form-data',
@@ -740,7 +746,7 @@ const Live: React.FC = () => {
         } catch (error) {
           console.error('Error uploading recording:', error);
         }
-        
+
         // Cleanup
         canvasStream.getTracks().forEach(track => track.stop());
         const animId = cameraAnimationRefs.current.get(cameraId);
@@ -751,16 +757,16 @@ const Live: React.FC = () => {
         cameraChunksRef.current.delete(cameraId);
         cameraAnimationRefs.current.delete(cameraId);
       };
-      
+
       cameraRecordersRef.current.set(cameraId, mediaRecorder);
       mediaRecorder.start();
-      
+
       // Draw frames continuously
       const drawFrame = () => {
         const recorder = cameraRecordersRef.current.get(cameraId);
         const canvas = cameraCanvasesRef.current.get(cameraId);
         const videoEl = document.getElementById(`video-${cameraId}`) as HTMLImageElement;
-        
+
         if (recorder && recorder.state === 'recording' && canvas && videoEl && videoEl.complete && videoEl.naturalWidth > 0) {
           const ctx = canvas.getContext('2d');
           if (ctx) {
@@ -770,7 +776,7 @@ const Live: React.FC = () => {
           cameraAnimationRefs.current.set(cameraId, animId);
         }
       };
-      
+
       drawFrame();
       console.log(`Started auto-recording for ${cameraName}`);
     } catch (error) {
@@ -814,7 +820,7 @@ const Live: React.FC = () => {
         // Get camera name from the camera ID
         const currentCamera = cameras.find(c => c.id === fullscreenCamera);
         const cameraName = currentCamera?.name;
-        
+
         if (!cameraName) {
           setRecentDetections([]);
           return;
@@ -840,11 +846,11 @@ const Live: React.FC = () => {
             // Combine date and time for proper sorting
             const dateTimeA = `${a.detection_date} ${a.detection_time}`;
             const dateTimeB = `${b.detection_date} ${b.detection_time}`;
-            
+
             // Parse to Date objects for comparison
             const dateA = new Date(dateTimeA);
             const dateB = new Date(dateTimeB);
-            
+
             // Sort in descending order (most recent first)
             return dateB.getTime() - dateA.getTime();
           })
@@ -860,7 +866,7 @@ const Live: React.FC = () => {
 
     // Initial fetch to load existing detections
     fetchDetections();
-    
+
     // No polling - updates will come via socket in real-time
   }, [fullscreenCamera, cameras]);
 
@@ -950,20 +956,20 @@ const Live: React.FC = () => {
       if (polygonPoints.length > 0) {
         const currentCamera = cameras.find(c => c.id === fullscreenCamera);
         const isRestrictedArea = currentCamera?.model === 'restricted_area';
-        
+
         // Calculate scale factors
         const naturalWidth = imgElement.naturalWidth || imgElement.width;
         const naturalHeight = imgElement.naturalHeight || imgElement.height;
         const displayedWidth = rect.width;
         const displayedHeight = rect.height;
-        
+
         // For restricted_area, backend processes at 640px width but sends back original size
         // So we need to scale from 640px width space to original size, then to displayed size
         const backendWidth = isRestrictedArea ? 640 : naturalWidth;
-        const backendHeight = isRestrictedArea 
-          ? (640 * naturalHeight) / naturalWidth 
+        const backendHeight = isRestrictedArea
+          ? (640 * naturalHeight) / naturalWidth
           : naturalHeight;
-        
+
         // Scale factor: backend coordinates -> original size -> displayed size
         // First scale to original size, then to displayed
         const scaleToOriginal = naturalWidth / backendWidth;
@@ -1010,7 +1016,7 @@ const Live: React.FC = () => {
     // Draw immediately and also on image load
     drawPolygon();
     imgElement.addEventListener('load', drawPolygon);
-    
+
     return () => {
       imgElement.removeEventListener('load', drawPolygon);
     };
@@ -1023,7 +1029,7 @@ const Live: React.FC = () => {
     if (target.tagName === 'BUTTON' || target.closest('button') || target.closest('.absolute')) {
       return;
     }
-    
+
     if (!isROIMarking || !fullscreenCamera) return;
 
     const imgElement = document.getElementById(`video-${fullscreenCamera}-fullscreen`) as HTMLImageElement;
@@ -1055,11 +1061,11 @@ const Live: React.FC = () => {
       // Backend processing dimensions (640px width)
       const backendWidth = 640;
       const backendHeight = naturalWidth > 0 ? (640 * naturalHeight) / naturalWidth : naturalHeight;
-      
+
       // Scale coordinates from original frame size to backend processing size (640px width)
       const backendX = (imageX * backendWidth) / naturalWidth;
       const backendY = (imageY * backendHeight) / naturalHeight;
-      
+
       setPolygonPoints([...polygonPoints, [backendX, backendY]]);
     } else {
       // Use actual image coordinates for other models
@@ -1101,7 +1107,7 @@ const Live: React.FC = () => {
     if (e) {
       e.stopPropagation();
     }
-    
+
     if (!fullscreenCamera) return;
 
     try {
@@ -1112,7 +1118,7 @@ const Live: React.FC = () => {
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (response.status === 200) {
         setSavedPolygonPoints([]);
         setPolygonPoints([]);
@@ -1140,11 +1146,10 @@ const Live: React.FC = () => {
             <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
               <button
                 onClick={() => setGridColumns(1)}
-                className={`p-2 rounded-md transition-all ${
-                  gridColumns === 1 
-                    ? 'bg-white shadow-sm text-blue-600' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
+                className={`p-2 rounded-md transition-all ${gridColumns === 1
+                  ? 'bg-white shadow-sm text-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+                  }`}
                 title="1 Column"
               >
                 <div className="w-4 h-4 flex flex-col gap-0.5">
@@ -1153,11 +1158,10 @@ const Live: React.FC = () => {
               </button>
               <button
                 onClick={() => setGridColumns(2)}
-                className={`p-2 rounded-md transition-all ${
-                  gridColumns === 2 
-                    ? 'bg-white shadow-sm text-blue-600' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
+                className={`p-2 rounded-md transition-all ${gridColumns === 2
+                  ? 'bg-white shadow-sm text-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+                  }`}
                 title="2 Columns"
               >
                 <div className="w-4 h-4 flex gap-0.5">
@@ -1167,11 +1171,10 @@ const Live: React.FC = () => {
               </button>
               <button
                 onClick={() => setGridColumns(3)}
-                className={`p-2 rounded-md transition-all ${
-                  gridColumns === 3 
-                    ? 'bg-white shadow-sm text-blue-600' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
+                className={`p-2 rounded-md transition-all ${gridColumns === 3
+                  ? 'bg-white shadow-sm text-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+                  }`}
                 title="3 Columns"
               >
                 <div className="w-4 h-4 grid grid-cols-3 gap-0.5">
@@ -1182,11 +1185,10 @@ const Live: React.FC = () => {
               </button>
               <button
                 onClick={() => setGridColumns(4)}
-                className={`p-2 rounded-md transition-all ${
-                  gridColumns === 4 
-                    ? 'bg-white shadow-sm text-blue-600' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
+                className={`p-2 rounded-md transition-all ${gridColumns === 4
+                  ? 'bg-white shadow-sm text-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+                  }`}
                 title="4 Columns"
               >
                 <div className="w-4 h-4 grid grid-cols-2 gap-0.5">
@@ -1229,13 +1231,12 @@ const Live: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className={`grid gap-6 ${
-            gridColumns === 1 ? 'grid-cols-1' :
-            gridColumns === 2 ? 'grid-cols-1 md:grid-cols-2' :
+        <div className={`grid gap-6 ${gridColumns === 1 ? 'grid-cols-1' :
+          gridColumns === 2 ? 'grid-cols-1 md:grid-cols-2' :
             gridColumns === 3 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' :
-            'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'
+              'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'
           }`}>
-            {cameras.map((camera) => (
+          {cameras.map((camera) => (
             <div key={camera.id} className="bg-white rounded-t-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300 group">
               {/* Video Feed */}
               <div className="relative bg-gray-900 overflow-hidden" style={{ paddingBottom: '56.25%' }}>
@@ -1247,17 +1248,15 @@ const Live: React.FC = () => {
                 />
                 {/* Overlay Gradient */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                
+
                 {/* Status Indicator */}
                 <div className="absolute top-3 left-3">
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-sm ${
-                    camera.isActive 
-                      ? 'bg-green-500/90 text-white' 
-                      : 'bg-gray-500/90 text-white'
-                  }`}>
-                    <div className={`w-2 h-2 rounded-full ${
-                      camera.isActive ? 'bg-white animate-pulse' : 'bg-white'
-                    }`}></div>
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-sm ${camera.isActive
+                    ? 'bg-green-500/90 text-white'
+                    : 'bg-gray-500/90 text-white'
+                    }`}>
+                    <div className={`w-2 h-2 rounded-full ${camera.isActive ? 'bg-white animate-pulse' : 'bg-white'
+                      }`}></div>
                     <span className="text-xs font-medium">
                       {camera.isActive ? 'Live' : 'Paused'}
                     </span>
@@ -1275,11 +1274,10 @@ const Live: React.FC = () => {
                   </button>
                   <button
                     onClick={() => toggleCameraStatus(camera.id, camera.isActive)}
-                    className={`p-2.5 rounded-lg backdrop-blur-sm transition-all ${
-                      camera.isActive 
-                        ? 'bg-red-500/90 hover:bg-red-600/90' 
-                        : 'bg-green-500/90 hover:bg-green-600/90'
-                    }`}
+                    className={`p-2.5 rounded-lg backdrop-blur-sm transition-all ${camera.isActive
+                      ? 'bg-red-500/90 hover:bg-red-600/90'
+                      : 'bg-green-500/90 hover:bg-green-600/90'
+                      }`}
                     title={camera.isActive ? 'Pause' : 'Resume'}
                   >
                     {camera.isActive ? (
@@ -1303,8 +1301,28 @@ const Live: React.FC = () => {
                     <X size={18} className="text-white" />
                   </button>
                 </div>
+
+                {/* Panic Detection Overlay */}
+                {camera.model?.toLowerCase().replace(/\s+/g, '_') === 'panic_detection' && panicStats[camera.id] && (
+                  <div className={`absolute bottom-3 left-3 right-3 px-3 py-2 rounded-lg backdrop-blur-md transition-all duration-300 ${panicStats[camera.id].is_panic
+                    ? 'bg-red-600/90 animate-pulse'
+                    : 'bg-emerald-600/80'
+                    }`}>
+                    <div className="flex items-center justify-between text-white text-xs font-medium">
+                      <span className="flex items-center gap-1.5">
+                        <Activity size={14} />
+                        {panicStats[camera.id].people_count} people
+                      </span>
+                      <span>{panicStats[camera.id].max_speed} px/s</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide ${panicStats[camera.id].is_panic ? 'bg-white/20' : 'bg-white/15'
+                        }`}>
+                        {panicStats[camera.id].status}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
-              
+
               {/* Camera Info */}
               <div className="p-4">
                 <div className="flex items-center gap-3 text-sm text-gray-700 flex-wrap">
@@ -1316,15 +1334,14 @@ const Live: React.FC = () => {
                   <span className="text-gray-400">•</span>
                   <span className="text-gray-600">
                     Models: <span className="font-medium text-gray-900">
-                      {((camera as any).models && (camera as any).models.length > 0) 
-                        ? (camera as any).models.join(', ') 
+                      {((camera as any).models && (camera as any).models.length > 0)
+                        ? (camera as any).models.join(', ')
                         : camera.model}
                     </span>
                   </span>
                   <span className="text-gray-400">•</span>
-                  <span className={`font-medium ${
-                    camera.isActive ? 'text-green-600' : 'text-gray-500'
-                  }`}>
+                  <span className={`font-medium ${camera.isActive ? 'text-green-600' : 'text-gray-500'
+                    }`}>
                     {camera.isActive ? 'Detecting' : 'Paused'}
                   </span>
                 </div>
@@ -1336,17 +1353,17 @@ const Live: React.FC = () => {
 
       {/* Add Camera Modal */}
       {isAddingCamera && (
-        <div 
-          className="fixed bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] overflow-y-auto" 
-          style={{ 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            width: '100vw', 
+        <div
+          className="fixed bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] overflow-y-auto"
+          style={{
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
             height: '100vh',
-            margin: 0, 
-            padding: 0 
+            margin: 0,
+            padding: 0
           }}
         >
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] my-4 mx-4 overflow-y-auto">
@@ -1355,20 +1372,20 @@ const Live: React.FC = () => {
                 <h3 className="text-2xl font-bold text-gray-900">Add New Camera</h3>
                 <p className="text-sm text-gray-600 mt-1">Configure camera settings and location</p>
               </div>
-              <button 
+              <button
                 onClick={() => {
                   setIsAddingCamera(false);
                   setNewCamera({ cameraSource: '', rtspUrl: '', name: '', location: '', model: '', models: [] });
                   setCameraSourceType('');
                   setSelectedLocation(null);
                   setLocationName('');
-                }} 
+                }}
                 className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <X size={24} className="text-gray-500" />
               </button>
             </div>
-            
+
             <div className="p-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Left Column - Form */}
@@ -1457,7 +1474,7 @@ const Live: React.FC = () => {
                       <p className="mt-1 text-xs text-gray-500">Please select a camera source or enter RTSP URL first</p>
                     )}
                   </div>
-                  
+
                   <div>
                     <label htmlFor="camera-model" className="block text-sm font-semibold text-gray-700 mb-2">
                       Detection Model
@@ -1494,7 +1511,7 @@ const Live: React.FC = () => {
                       />
                       <Search className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
                     </div>
-                    
+
                     {searchResults.length > 0 && (
                       <div className="absolute z-20 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
                         {searchResults.map((result, index) => (
@@ -1536,7 +1553,7 @@ const Live: React.FC = () => {
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
                     {/* Current Location Marker */}
-                    <Marker 
+                    <Marker
                       position={currentLocation}
                       icon={L.divIcon({
                         className: 'current-location-marker',
@@ -1555,7 +1572,7 @@ const Live: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             {/* Modal Footer */}
             <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
               <button
@@ -1584,17 +1601,17 @@ const Live: React.FC = () => {
 
       {/* Edit Camera Modal */}
       {editingCamera && (
-        <div 
-          className="fixed bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] overflow-y-auto" 
-          style={{ 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            width: '100vw', 
+        <div
+          className="fixed bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] overflow-y-auto"
+          style={{
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
             height: '100vh',
-            margin: 0, 
-            padding: 0 
+            margin: 0,
+            padding: 0
           }}
         >
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] my-4 mx-4 overflow-y-auto">
@@ -1603,20 +1620,20 @@ const Live: React.FC = () => {
                 <h3 className="text-2xl font-bold text-gray-900">Edit Camera Settings</h3>
                 <p className="text-sm text-gray-600 mt-1">Update camera name, model, and location</p>
               </div>
-              <button 
+              <button
                 onClick={() => {
                   setEditingCamera(null);
                   setNewCamera({ cameraSource: '', rtspUrl: '', name: '', location: '', model: '', models: [] });
                   setCameraSourceType('');
                   setSelectedLocation(null);
                   setLocationName('');
-                }} 
+                }}
                 className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <X size={24} className="text-gray-500" />
               </button>
             </div>
-            
+
             <div className="p-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Left Column - Form */}
@@ -1701,7 +1718,7 @@ const Live: React.FC = () => {
                       </p>
                     </div>
                   )}
-                  
+
                   <div>
                     <label htmlFor="edit-camera-models" className="block text-sm font-semibold text-gray-700 mb-2">
                       Detection Models (Select Multiple)
@@ -1714,14 +1731,14 @@ const Live: React.FC = () => {
                             checked={newCamera.models?.includes(model) || false}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setNewCamera({ 
-                                  ...newCamera, 
+                                setNewCamera({
+                                  ...newCamera,
                                   models: [...(newCamera.models || []), model],
-                                  model: model 
+                                  model: model
                                 });
                               } else {
-                                setNewCamera({ 
-                                  ...newCamera, 
+                                setNewCamera({
+                                  ...newCamera,
                                   models: (newCamera.models || []).filter(m => m !== model),
                                   model: (newCamera.models || []).filter(m => m !== model)[0] || ''
                                 });
@@ -1757,7 +1774,7 @@ const Live: React.FC = () => {
                       />
                       <Search className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
                     </div>
-                    
+
                     {searchResults.length > 0 && (
                       <div className="absolute z-20 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
                         {searchResults.map((result, index) => (
@@ -1808,7 +1825,7 @@ const Live: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             {/* Modal Footer */}
             <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
               <button
@@ -1836,14 +1853,14 @@ const Live: React.FC = () => {
 
       {/* Fullscreen View */}
       {fullscreenCamera && (
-        <div 
+        <div
           ref={fullscreenRef}
           className="fixed top-0 left-0 right-0 bottom-0 bg-black z-50 m-0"
           style={{ margin: 0, padding: 0 }}
         >
           <div className="w-full h-full bg-gray-950 flex overflow-hidden relative">
             {/* Left Side - Video Feed */}
-            <div 
+            <div
               className="flex-1 h-full flex items-start justify-start overflow-hidden relative bg-black"
               onClick={handleVideoClick}
               style={{ cursor: isROIMarking ? 'crosshair' : 'default' }}
@@ -1858,8 +1875,8 @@ const Live: React.FC = () => {
               <canvas
                 ref={roiCanvasRef}
                 className="absolute top-0 left-0 pointer-events-none"
-                style={{ 
-                  transform: `scale(${zoomLevel})`, 
+                style={{
+                  transform: `scale(${zoomLevel})`,
                   transformOrigin: 'top left',
                   zIndex: 10,
                   imageRendering: 'pixelated'
@@ -1874,7 +1891,7 @@ const Live: React.FC = () => {
                   <p className="mt-1">Points marked: {polygonPoints.length}</p>
                 </div>
               )}
-              
+
               {/* Top Left - Camera Info Overlay */}
               <div className={`absolute top-24 left-6 transition-opacity duration-300 z-10 font-mono ${showOverlay ? 'opacity-100' : 'opacity-0'}`}>
                 <h3 className="text-2xl font-bold text-cyan-400 mb-2 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]">
@@ -1894,117 +1911,117 @@ const Live: React.FC = () => {
                 <p className="text-base text-blue-400 mb-1 drop-shadow-[0_0_6px_rgba(96,165,250,0.6)]">{currentDateTime.day}</p>
                 <p className="text-sm text-blue-300 drop-shadow-[0_0_4px_rgba(147,197,253,0.5)]">{currentDateTime.date}</p>
               </div>
-              
+
               {/* Control Buttons Overlay */}
               <div className={`absolute bottom-6 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-black/70 backdrop-blur-sm px-6 py-3 rounded-full transition-opacity duration-300 z-10 ${showOverlay ? 'opacity-100' : 'opacity-0'}`}>
-              <button
-                onClick={handleZoomOut}
-                className="p-3 bg-gray-700 hover:bg-gray-600 text-white rounded-full transition-colors"
-                title="Zoom Out"
-              >
-                <ZoomOut size={20} />
-              </button>
-              <button
-                onClick={handleResetZoom}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm font-medium"
-                title="Reset Zoom"
-              >
-                {Math.round(zoomLevel * 100)}%
-              </button>
-              <button
-                onClick={handleZoomIn}
-                className="p-3 bg-gray-700 hover:bg-gray-600 text-white rounded-full transition-colors"
-                title="Zoom In"
-              >
-                <ZoomIn size={20} />
-              </button>
-              <div className="w-px h-8 bg-gray-600"></div>
-              <button
-                onClick={takeSnapshot}
-                className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-full transition-colors"
-                title="Take Snapshot"
-              >
-                <Camera size={20} />
-              </button>
-              {!isRecording ? (
                 <button
-                  onClick={startRecording}
-                  className="p-3 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors"
-                  title="Start Recording"
+                  onClick={handleZoomOut}
+                  className="p-3 bg-gray-700 hover:bg-gray-600 text-white rounded-full transition-colors"
+                  title="Zoom Out"
                 >
-                  <Circle size={20} fill="currentColor" />
+                  <ZoomOut size={20} />
                 </button>
-              ) : (
                 <button
-                  onClick={stopRecording}
-                  className="p-3 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors animate-pulse"
-                  title="Stop Recording"
+                  onClick={handleResetZoom}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm font-medium"
+                  title="Reset Zoom"
                 >
-                  <Circle size={20} fill="currentColor" />
+                  {Math.round(zoomLevel * 100)}%
                 </button>
-              )}
-              {/* ROI Marking Buttons - Only show for restricted_area model */}
-              {cameras.find(c => c.id === fullscreenCamera)?.model === 'restricted_area' && (
-                <>
-                  <div className="w-px h-8 bg-gray-600"></div>
-                  {!isROIMarking ? (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsROIMarking(true);
-                      }}
-                      className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-full transition-colors"
-                      title="Mark Restricted Area"
-                    >
-                      <Square size={20} />
-                    </button>
-                  ) : (
-                    <>
+                <button
+                  onClick={handleZoomIn}
+                  className="p-3 bg-gray-700 hover:bg-gray-600 text-white rounded-full transition-colors"
+                  title="Zoom In"
+                >
+                  <ZoomIn size={20} />
+                </button>
+                <div className="w-px h-8 bg-gray-600"></div>
+                <button
+                  onClick={takeSnapshot}
+                  className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-full transition-colors"
+                  title="Take Snapshot"
+                >
+                  <Camera size={20} />
+                </button>
+                {!isRecording ? (
+                  <button
+                    onClick={startRecording}
+                    className="p-3 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors"
+                    title="Start Recording"
+                  >
+                    <Circle size={20} fill="currentColor" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={stopRecording}
+                    className="p-3 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors animate-pulse"
+                    title="Stop Recording"
+                  >
+                    <Circle size={20} fill="currentColor" />
+                  </button>
+                )}
+                {/* ROI Marking Buttons - Only show for restricted_area model */}
+                {cameras.find(c => c.id === fullscreenCamera)?.model === 'restricted_area' && (
+                  <>
+                    <div className="w-px h-8 bg-gray-600"></div>
+                    {!isROIMarking ? (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          savePolygonPoints(e);
+                          setIsROIMarking(true);
                         }}
-                        className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Save Polygon"
-                        disabled={polygonPoints.length < 3}
+                        className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-full transition-colors"
+                        title="Mark Restricted Area"
                       >
-                        <Check size={20} />
+                        <Square size={20} />
                       </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            savePolygonPoints(e);
+                          }}
+                          className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Save Polygon"
+                          disabled={polygonPoints.length < 3}
+                        >
+                          <Check size={20} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            clearPolygonPoints(e);
+                          }}
+                          className="p-3 bg-orange-600 hover:bg-orange-700 text-white rounded-full transition-colors"
+                          title="Clear Points"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsROIMarking(false);
+                          }}
+                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm font-medium"
+                          title="Cancel"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                    {savedPolygonPoints.length > 0 && !isROIMarking && (
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          clearPolygonPoints(e);
-                        }}
-                        className="p-3 bg-orange-600 hover:bg-orange-700 text-white rounded-full transition-colors"
-                        title="Clear Points"
+                        onClick={deletePolygon}
+                        className="p-3 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors"
+                        title="Delete Saved Polygon"
                       >
                         <Trash2 size={20} />
                       </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsROIMarking(false);
-                        }}
-                        className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm font-medium"
-                        title="Cancel"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  )}
-                  {savedPolygonPoints.length > 0 && !isROIMarking && (
-                    <button
-                      onClick={deletePolygon}
-                      className="p-3 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors"
-                      title="Delete Saved Polygon"
-                    >
-                      <Trash2 size={20} />
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Right Side - Recent Detections Panel */}
@@ -2012,7 +2029,7 @@ const Live: React.FC = () => {
               {/* Panel Header */}
               <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/95 backdrop-blur-sm">
                 <h3 className="text-lg font-bold text-white">Recent Detections</h3>
-                <button 
+                <button
                   onClick={exitFullscreen}
                   className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg transition-colors"
                 >

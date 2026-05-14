@@ -15,10 +15,10 @@ const CameraContext = createContext<CameraContextType | undefined>(undefined);
 
 export const CameraProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [cameras, setCameras] = useState<Camera[]>([]);
-  
+
   // Mock available cameras and models
   const availableCameras = ['Camera 1', 'Camera 2', 'Camera 3', 'Camera 4', 'Camera 5'];
-  const availableModels = ['Smoking', 'shoplifting', 'mask', 'Accident','restricted_area','weapon'];
+  const availableModels = ['Smoking', 'shoplifting', 'mask', 'Accident', 'restricted_area', 'weapon', 'Panic Detection'];
 
   useEffect(() => {
     // Load cameras from localStorage
@@ -49,11 +49,11 @@ export const CameraProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   const updateCamera = async (id: string, updates: Partial<Camera>) => {
-    const updatedCameras = cameras.map(camera => 
+    const updatedCameras = cameras.map(camera =>
       camera.id === id ? { ...camera, ...updates } : camera
     );
     setCameras(updatedCameras);
-    
+
     // Update in database
     const updatedCamera = updatedCameras.find(c => c.id === id);
     if (updatedCamera) {
@@ -66,10 +66,10 @@ export const CameraProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   return (
-    <CameraContext.Provider value={{ 
-      cameras, 
-      addCamera, 
-      removeCamera, 
+    <CameraContext.Provider value={{
+      cameras,
+      addCamera,
+      removeCamera,
       updateCamera,
       availableCameras,
       availableModels
