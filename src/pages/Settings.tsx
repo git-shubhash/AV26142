@@ -27,16 +27,17 @@ interface AlertSetting {
 
 const DETECTION_CLASSES = [
   'weapon',
-  'Gun',
-  'Knife',
-  'Pistol',
-  'Fire',
+  'gun',
+  'knife',
+  'pistol',
   'fire',
-  'Accident',
+  'accident',
   'smoking',
   'cigarette',
   'without_mask',
-  'Person Entered Restricted Area'
+  'shoplifting',
+  'Person Entered Restricted Area',
+  'Panic Detected'
 ];
 
 type TabType = 'profile' | 'security' | 'alerts';

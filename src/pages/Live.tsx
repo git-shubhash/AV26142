@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { PlusCircle, X, Play, Pause, Maximize, MapPin, Search, Video, Activity, AlertCircle, ZoomIn, ZoomOut, Camera, Circle, Square, Check, Trash2, Settings } from 'lucide-react';
+import { PlusCircle, X, Play, Pause, Maximize, MapPin, Search, Video, Activity, AlertCircle, ZoomIn, ZoomOut, Camera, Circle, Square, Check, Trash2, Settings, Wifi, WifiOff, Users, BarChart2, Radio } from 'lucide-react';
 import { useCamera } from '../context/CameraContext';
 import { v4 as uuidv4 } from 'uuid';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
@@ -41,6 +41,21 @@ const MapUpdater: React.FC<{ center?: [number, number] }> = ({ center }) => {
 };
 
 const Live: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'cameras' | 'drone'>('cameras');
+
+  // Drone tab state
+  const [droneRtspUrl, setDroneRtspUrl] = useState('');
+  const [droneConnected, setDroneConnected] = useState(false);
+  const [droneConnecting, setDroneConnecting] = useState(false);
+  const [droneModel, setDroneModel] = useState('crowd_density');
+  const [droneStats, setDroneStats] = useState<{ people_count: number; total_count: number; density: string; fps: number }>({
+    people_count: 0, total_count: 0, density: 'Low', fps: 0
+  });
+  const droneCameraId = useRef<string>('drone-feed-001');
+  const droneLastFrameTime = useRef<number>(0);
+  const droneFpsBuffer = useRef<number[]>([]);
+  const droneLatencyRef = useRef<number>(0);
+
   const { cameras, addCamera, removeCamera, updateCamera, availableCameras, availableModels } = useCamera();
   const [isAddingCamera, setIsAddingCamera] = useState(false);
   const [editingCamera, setEditingCamera] = useState<string | null>(null);
@@ -1133,8 +1148,279 @@ const Live: React.FC = () => {
     }
   };
 
+  // Drone connect / disconnect
+  const handleDroneConnect = () => {
+    if (!droneRtspUrl.trim()) return;
+    setDroneConnecting(true);
+    setTimeout(() => {
+      if (socketRef.current) {
+        socketRef.current.emit('start_stream', {
+          camera_id: droneCameraId.current,
+          rtsp_url: droneRtspUrl,
+          model_name: droneModel.toLowerCase().replace(/\s+/g, '_'),
+        });
+      }
+      setDroneConnected(true);
+      setDroneConnecting(false);
+    }, 1200);
+  };
+
+  const handleDroneDisconnect = () => {
+    if (socketRef.current) {
+      socketRef.current.emit('stop_stream', { camera_id: droneCameraId.current });
+    }
+    setDroneConnected(false);
+    setDroneStats({ people_count: 0, total_count: 0, density: 'Low', fps: 0 });
+    const img = document.getElementById(`video-${droneCameraId.current}`) as HTMLImageElement;
+    if (img) img.src = '';
+  };
+
+  // Listen to drone video_frame for stats
+  useEffect(() => {
+    if (!socketRef.current) return;
+    const handler = (data: any) => {
+      if (data.camera_id !== droneCameraId.current) return;
+
+      // ── FPS measurement ──
+      const now = Date.now();
+      if (droneLastFrameTime.current > 0) {
+        const delta = now - droneLastFrameTime.current;
+        if (delta > 0) {
+          droneFpsBuffer.current.push(1000 / delta);
+          if (droneFpsBuffer.current.length > 10) droneFpsBuffer.current.shift();
+          const avgFps = droneFpsBuffer.current.reduce((a, b) => a + b, 0) / droneFpsBuffer.current.length;
+          droneLatencyRef.current = Math.round(delta);
+          setDroneStats(prev => ({ ...prev, fps: Math.round(avgFps) }));
+        }
+      }
+      droneLastFrameTime.current = now;
+
+      // Update video frame
+      const img = document.getElementById(`video-${droneCameraId.current}`) as HTMLImageElement;
+      if (img && data.frame) img.src = `data:image/jpeg;base64,${data.frame}`;
+      // crowd_stats from generate_frames (all non-panic models)
+      if (data.crowd_stats) {
+        setDroneStats(prev => ({
+          ...prev,
+          people_count: data.crowd_stats.people_count ?? prev.people_count,
+          total_count: data.crowd_stats.total_count ?? prev.total_count,
+          density: data.crowd_stats.density ?? prev.density,
+        }));
+      }
+      // panic_stats from generate_panic_frames
+      if (data.panic_stats) {
+        setDroneStats(prev => ({
+          ...prev,
+          people_count: data.panic_stats.people_count ?? prev.people_count,
+          density: data.panic_stats.is_panic ? 'PANIC' : (data.panic_stats.status ?? prev.density),
+        }));
+      }
+    };
+    socketRef.current.on('video_frame', handler);
+    return () => { if (socketRef.current) socketRef.current.off('video_frame', handler); };
+  }, [droneConnected]);
+
   return (
     <div className="space-y-6 relative">
+      {/* Tab Bar */}
+      <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-2">
+        <button
+          onClick={() => setActiveTab('cameras')}
+          className={`flex items-center gap-2 px-5 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
+            activeTab === 'cameras'
+              ? 'bg-white shadow text-indigo-700'
+              : 'text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <Video size={16} />
+          Cameras
+        </button>
+        <button
+          onClick={() => setActiveTab('drone')}
+          className={`flex items-center gap-2 px-5 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
+            activeTab === 'drone'
+              ? 'bg-white shadow text-indigo-700'
+              : 'text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <Radio size={16} />
+          Drone Feed
+        </button>
+      </div>
+
+      {/* ─────────────────── DRONE TAB ─────────────────── */}
+      {activeTab === 'drone' && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden">
+
+          {/* Connection Bar */}
+          <div className="flex flex-col sm:flex-row gap-2 px-6 py-3 bg-gray-50 border-b border-gray-100">
+            <div className="flex-1 flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
+              <Wifi size={14} className="text-indigo-500 shrink-0" />
+              <input
+                type="text"
+                value={droneRtspUrl}
+                onChange={e => setDroneRtspUrl(e.target.value)}
+                placeholder="rtsp://192.168.1.100:8554/drone?tcp  (TCP recommended)"
+                className="flex-1 bg-transparent text-gray-800 text-sm placeholder-gray-400 focus:outline-none"
+                disabled={droneConnected}
+              />
+            </div>
+            <select
+              value={droneModel}
+              onChange={e => setDroneModel(e.target.value)}
+              disabled={droneConnected}
+              className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-60"
+            >
+              <option value="yolo11x">Person Detection</option>
+              <option value="panic_detection">Panic Detection</option>
+              <option value="floods">Flood Detection</option>
+              <option value="weapon">Weapon Detection</option>
+            </select>
+            {!droneConnected ? (
+              <button
+                onClick={handleDroneConnect}
+                disabled={!droneRtspUrl.trim() || droneConnecting}
+                className="flex items-center gap-2 px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {droneConnecting ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Connecting...</>
+                ) : (
+                  <><Play size={14} /> Connect</>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={handleDroneDisconnect}
+                className="flex items-center gap-2 px-5 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-all"
+              >
+                <WifiOff size={14} /> Disconnect
+              </button>
+            )}
+          </div>
+
+          {/* Body: 60% video | 40% stats */}
+          <div className="flex flex-col lg:flex-row">
+
+            {/* Video — 60% */}
+            <div className="lg:w-3/5 bg-black relative" style={{ minHeight: '360px' }}>
+              <div className="relative w-full h-full" style={{ paddingBottom: '56.25%' }}>
+                <img
+                  id={`video-${droneCameraId.current}`}
+                  alt="Drone feed"
+                  src=""
+                  className="absolute inset-0 w-full h-full object-contain"
+                  style={{ display: droneConnected ? 'block' : 'none' }}
+                />
+                {!droneConnected && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center">
+                      <Radio size={28} className="text-gray-500" />
+                    </div>
+                    <p className="text-gray-400 text-sm">No drone feed connected</p>
+                    <p className="text-gray-600 text-xs">Enter RTSP URL above and click Connect</p>
+                  </div>
+                )}
+                {droneConnected && (
+                  <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-red-600/90 backdrop-blur-sm px-2.5 py-1 rounded-full z-10">
+                    <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                    <span className="text-white text-xs font-bold tracking-widest">LIVE</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Stats Panel — 40% */}
+            <div className="lg:w-2/5 p-5 flex flex-col gap-3 border-l border-gray-100 bg-white">
+
+              {/* Real-time Count */}
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-indigo-50 border border-indigo-100">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+                  <Users size={18} className="text-indigo-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-indigo-500 text-xs font-semibold uppercase tracking-wider">Real-time Count</p>
+                  <p className="text-gray-500 text-xs">People in frame</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-gray-900 font-black text-4xl leading-none">{droneStats.people_count}</span>
+                  <p className="text-indigo-400 text-xs mt-0.5">people</p>
+                </div>
+              </div>
+
+              {/* Total Count */}
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                  <BarChart2 size={18} className="text-emerald-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-emerald-500 text-xs font-semibold uppercase tracking-wider">Total Count</p>
+                  <p className="text-gray-500 text-xs">This session</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-gray-900 font-black text-4xl leading-none">{droneStats.total_count}</span>
+                  <p className="text-emerald-400 text-xs mt-0.5">detections</p>
+                </div>
+              </div>
+
+              {/* Density Badge */}
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <div className="flex-1">
+                  <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Crowd Density</p>
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
+                    droneStats.density === 'High' || droneStats.density === 'PANIC'
+                      ? 'bg-red-100 text-red-600'
+                      : droneStats.density === 'Medium'
+                      ? 'bg-amber-100 text-amber-600'
+                      : 'bg-green-100 text-green-600'
+                  }`}>
+                    {droneStats.density}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <p className="text-gray-400 text-xs">Model</p>
+                  <p className="text-gray-700 text-xs font-medium capitalize">{droneModel.replace(/_/g, ' ')}</p>
+                </div>
+              </div>
+
+              {/* Stream Info */}
+              <div className="mt-auto pt-3 border-t border-gray-100 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-gray-400 text-xs">Status</span>
+                  <span className={`text-xs font-semibold ${droneConnected ? 'text-green-600' : 'text-gray-400'}`}>
+                    {droneConnected ? 'Connected' : 'Disconnected'}
+                  </span>
+                </div>
+                {droneConnected && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400 text-xs">Stream FPS</span>
+                    <span className={`text-xs font-semibold ${
+                      droneStats.fps >= 20 ? 'text-green-600' :
+                      droneStats.fps >= 10 ? 'text-amber-500' : 'text-red-500'
+                    }`}>
+                      {droneStats.fps > 0 ? `${droneStats.fps} fps` : 'Measuring…'}
+                    </span>
+                  </div>
+                )}
+                {droneConnected && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400 text-xs">Pipeline</span>
+                    <span className="text-xs font-medium text-indigo-500">Ultra-Low Latency ⚡</span>
+                  </div>
+                )}
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400 text-xs shrink-0">Source</span>
+                  <span className="text-gray-600 text-xs truncate text-right">{droneRtspUrl || '—'}</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────── CAMERAS TAB ─────────────────────── */}
+      {activeTab === 'cameras' && (
+        <>
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -2093,6 +2379,8 @@ const Live: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
