@@ -103,6 +103,7 @@ const Live: React.FC = () => {
     location: '',
     model: '',
     models: [] as string[],
+    emergencyContact: '',
   });
   const [cameraSourceType, setCameraSourceType] = useState<'local' | 'rtsp' | ''>('');
 
@@ -382,6 +383,12 @@ const Live: React.FC = () => {
       // Save camera to database with coordinates
       try {
         await axios.post('http://localhost:5000/api/cameras', cameraData);
+        // Save emergency contact if provided
+        if (newCamera.emergencyContact.trim()) {
+          await axios.post(`http://localhost:5000/api/camera/${cameraId}/contact`, {
+            emergency_contact: newCamera.emergencyContact.trim()
+          });
+        }
       } catch (error) {
         console.error('Error saving camera to database:', error);
       }
@@ -404,7 +411,7 @@ const Live: React.FC = () => {
         setTimeout(() => startAutoRecording(cameraId, newCamera.name), 2000);
       }
 
-      setNewCamera({ cameraSource: '', rtspUrl: '', name: '', location: '', model: '' });
+      setNewCamera({ cameraSource: '', rtspUrl: '', name: '', location: '', model: '', models: [], emergencyContact: '' });
       setCameraSourceType('');
       setSelectedLocation(null);
       setLocationName('');
@@ -430,7 +437,12 @@ const Live: React.FC = () => {
       models: (camera as any).models && (camera as any).models.length > 0
         ? (camera as any).models
         : (camera.model ? [camera.model] : []),
+      emergencyContact: (camera as any).emergencyContact || '',
     });
+    // Load saved emergency contact from backend
+    axios.get(`http://localhost:5000/api/camera/${cameraId}/contact`)
+      .then(r => setNewCamera(prev => ({ ...prev, emergencyContact: r.data.emergency_contact || '' })))
+      .catch(() => {});
 
     // Parse location if it exists
     if (camera.location) {
@@ -486,6 +498,12 @@ const Live: React.FC = () => {
     // Save camera to database with coordinates
     try {
       await axios.post('http://localhost:5000/api/cameras', updatedCameraData);
+      // Save emergency contact if provided
+      if (newCamera.emergencyContact.trim()) {
+        await axios.post(`http://localhost:5000/api/camera/${camera.id}/contact`, {
+          emergency_contact: newCamera.emergencyContact.trim()
+        });
+      }
     } catch (error) {
       console.error('Error updating camera in database:', error);
     }
@@ -513,7 +531,7 @@ const Live: React.FC = () => {
       }, 500);
     }
 
-    setNewCamera({ cameraSource: '', name: '', location: '', model: '', models: [] });
+    setNewCamera({ cameraSource: '', name: '', location: '', model: '', models: [], emergencyContact: '' });
     setSelectedLocation(null);
     setLocationName('');
     setEditingCamera(null);
@@ -1823,6 +1841,22 @@ const Live: React.FC = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* Emergency Contact Phone */}
+                  <div>
+                    <label htmlFor="add-emergency-contact" className="block text-sm font-semibold text-gray-700 mb-2">
+                      Emergency Contact Phone
+                    </label>
+                    <input
+                      type="tel"
+                      id="add-emergency-contact"
+                      value={newCamera.emergencyContact}
+                      onChange={(e) => setNewCamera({ ...newCamera, emergencyContact: e.target.value })}
+                      placeholder="+91XXXXXXXXXX  (leave blank for default)"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Alerts for this camera will be sent to this number. Must include country code (e.g. +91).</p>
+                  </div>
                 </div>
 
                 {/* Right Column - Map */}
@@ -1908,7 +1942,7 @@ const Live: React.FC = () => {
               <button
                 onClick={() => {
                   setEditingCamera(null);
-                  setNewCamera({ cameraSource: '', rtspUrl: '', name: '', location: '', model: '', models: [] });
+                  setNewCamera({ cameraSource: '', rtspUrl: '', name: '', location: '', model: '', models: [], emergencyContact: '' });
                   setCameraSourceType('');
                   setSelectedLocation(null);
                   setLocationName('');
@@ -2085,6 +2119,21 @@ const Live: React.FC = () => {
                         </div>
                       </div>
                     )}
+                  </div>
+                  {/* Emergency Contact Phone */}
+                  <div>
+                    <label htmlFor="edit-emergency-contact" className="block text-sm font-semibold text-gray-700 mb-2">
+                      Emergency Contact Phone
+                    </label>
+                    <input
+                      type="tel"
+                      id="edit-emergency-contact"
+                      value={newCamera.emergencyContact}
+                      onChange={(e) => setNewCamera({ ...newCamera, emergencyContact: e.target.value })}
+                      placeholder="+91XXXXXXXXXX  (leave blank for default)"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Alerts for this camera will be sent to this number. Must include country code (e.g. +91).</p>
                   </div>
                 </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Bar, Doughnut, Line, Scatter } from 'react-chartjs-2';
+import { Bar, Doughnut, Line, Scatter, Radar, PolarArea } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -13,6 +13,7 @@ import {
   Tooltip,
   Legend,
   Filler,
+  RadialLinearScale,
 } from 'chart.js';
 import { Camera, Users, AlertTriangle, Clock, TrendingUp, MapPin, Activity, Shield, Target, Zap } from 'lucide-react';
 import { Detection, DashboardStats, MongoDetection } from '../types';
@@ -31,7 +32,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
+  RadialLinearScale
 );
 
 const Dashboard: React.FC = () => {
@@ -142,7 +144,7 @@ const Dashboard: React.FC = () => {
   };
 
   // KPI Calculations
-  const criticalThreats = detections.filter(d => 
+  const criticalThreats = detections.filter(d =>
     ['Pistol', 'Knife', 'Fire', 'Gun', 'Weapon'].some(t => d.label.toLowerCase().includes(t.toLowerCase()))
   ).length;
 
@@ -238,7 +240,7 @@ const Dashboard: React.FC = () => {
     const dailyData = getDailyData();
     const values = dailyData.data;
     if (values.length < 3) return { labels: dailyData.labels, data: values, forecast: [] };
-    
+
     const window = 3;
     const forecast: number[] = [];
     for (let i = 0; i < 7; i++) {
@@ -246,17 +248,40 @@ const Dashboard: React.FC = () => {
       const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
       forecast.push(Math.max(0, Math.round(avg * (1 + (i * 0.05)))));
     }
-    
+
     const forecastLabels = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() + i + 1);
       return date.toISOString().split('T')[0];
     });
-    
+
     return {
       labels: [...dailyData.labels, ...forecastLabels],
       data: [...values, ...Array(7).fill(null)],
       forecast: [...Array(values.length).fill(null), ...forecast],
+    };
+  };
+
+  // Scatter data (Confidence vs Time for today)
+  const getScatterData = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const todayDets = detections.filter(d => d.detection_date === today);
+    const data = todayDets.map(d => {
+      const parts = d.detection_time.split(':');
+      const hourStr = parts[0] || '0';
+      const minStr = parts[1] || '0';
+      const timeNum = parseInt(hourStr) + parseInt(minStr) / 60;
+      return { x: timeNum, y: d.confidence * 100 };
+    });
+    return {
+      datasets: [{
+        label: 'Confidence (%)',
+        data,
+        backgroundColor: 'rgba(99, 102, 241, 0.6)',
+        borderColor: 'rgba(99, 102, 241, 1)',
+        pointRadius: 5,
+        pointHoverRadius: 8,
+      }]
     };
   };
 
@@ -278,6 +303,7 @@ const Dashboard: React.FC = () => {
   const confidenceData = getConfidenceData();
   const confidenceByLabel = getConfidenceByLabel();
   const forecastData = getForecastData();
+  const scatterData = getScatterData();
   const cameraData = {
     labels: Object.keys(stats.detection_by_camera),
     data: Object.values(stats.detection_by_camera),
@@ -333,24 +359,27 @@ const Dashboard: React.FC = () => {
       {/* Section 2: Time-Series Analysis */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <h3 className="text-xl font-semibold mb-4">Detections Over Time</h3>
+          <h3 className="text-xl font-semibold mb-4">Confidence Activity (Today)</h3>
           <div className="h-80">
-            <Line
-              data={{
-                labels: dailyData.labels,
-                datasets: [{
-                  label: 'Detections',
-                  data: dailyData.data,
-                  borderColor: 'rgba(59,130,246,1)',
-                  backgroundColor: 'rgba(59,130,246,0.1)',
-                  fill: true,
-                  tension: 0.4,
-                }],
-              }}
+            <Scatter
+              data={scatterData}
               options={{
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } },
+                scales: { 
+                  y: { 
+                    suggestedMin: -5,
+                    suggestedMax: 105, 
+                    title: { display: true, text: 'Confidence (%)' },
+                    grid: { color: 'rgba(0,0,0,0.05)' } 
+                  },
+                  x: { 
+                    suggestedMin: -1,
+                    suggestedMax: 25, 
+                    title: { display: true, text: 'Hour of Day' },
+                    grid: { color: 'rgba(0,0,0,0.05)' } 
+                  }
+                },
               }}
             />
           </div>
@@ -381,21 +410,33 @@ const Dashboard: React.FC = () => {
       {/* Section 3: Threat & Model Analysis */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <h3 className="text-xl font-semibold mb-4">Detections by Model (Clustered Bar)</h3>
+          <h3 className="text-xl font-semibold mb-4">Detections by Model (Radar)</h3>
           <div className="h-80">
-            <Bar
+            <Radar
               data={{
                 labels: modelData.labels,
                 datasets: [{
                   label: 'Detections',
                   data: modelData.data,
-                  backgroundColor: ['rgba(239,68,68,0.8)', 'rgba(251,191,36,0.8)', 'rgba(34,197,94,0.8)', 'rgba(59,130,246,0.8)'],
+                  backgroundColor: 'rgba(99,102,241,0.25)',
+                  borderColor: 'rgba(99,102,241,1)',
+                  pointBackgroundColor: 'rgba(99,102,241,1)',
+                  pointBorderColor: '#fff',
+                  pointHoverBackgroundColor: '#fff',
+                  pointHoverBorderColor: 'rgba(99,102,241,1)',
                 }],
               }}
               options={{
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } },
+                scales: { 
+                  r: { 
+                    angleLines: { color: 'rgba(0,0,0,0.1)' },
+                    grid: { color: 'rgba(0,0,0,0.1)' },
+                    pointLabels: { font: { size: 12, weight: 'bold' } },
+                    ticks: { display: false }
+                  } 
+                },
               }}
             />
           </div>
@@ -428,22 +469,30 @@ const Dashboard: React.FC = () => {
       {/* Section 4: Camera Analysis */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <h3 className="text-xl font-semibold mb-4">Detections by Camera (Horizontal Bar)</h3>
+          <h3 className="text-xl font-semibold mb-4">Detections by Camera (Polar Area)</h3>
           <div className="h-80">
-            <Bar
+            <PolarArea
               data={{
                 labels: cameraData.labels,
                 datasets: [{
                   label: 'Detections',
                   data: cameraData.data,
-                  backgroundColor: 'rgba(59,130,246,0.8)',
+                  backgroundColor: [
+                    'rgba(59, 130, 246, 0.7)',
+                    'rgba(16, 185, 129, 0.7)',
+                    'rgba(245, 158, 11, 0.7)',
+                    'rgba(239, 68, 68, 0.7)',
+                    'rgba(139, 92, 246, 0.7)',
+                  ],
+                  borderWidth: 1,
                 }],
               }}
               options={{
                 maintainAspectRatio: false,
-                indexAxis: 'y',
-                plugins: { legend: { display: false } },
-                scales: { x: { beginAtZero: true } },
+                plugins: { legend: { position: 'right' } },
+                scales: {
+                  r: { ticks: { display: false } }
+                }
               }}
             />
           </div>
@@ -572,30 +621,36 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <h3 className="text-xl font-semibold mb-4">Anomaly Detection Timeline</h3>
-          <div className="h-80">
-            <Line
-              data={{
-                labels: dailyData.labels,
-                datasets: [{
-                  label: 'Detections',
-                  data: dailyData.data.map((val, i) => {
-                    const avg = dailyData.data.reduce((a, b) => a + b, 0) / dailyData.data.length;
-                    const std = Math.sqrt(dailyData.data.reduce((sq, n) => sq + Math.pow(n - avg, 2), 0) / dailyData.data.length);
-                    return val > avg + 2 * std ? val : null;
-                  }),
-                  borderColor: 'rgba(239,68,68,1)',
-                  backgroundColor: 'rgba(239,68,68,0.1)',
-                  pointRadius: 8,
-                  pointBackgroundColor: 'rgba(239,68,68,1)',
-                }],
-              }}
-              options={{
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } },
-              }}
-            />
+          <h3 className="text-xl font-semibold mb-4">Recent Detections</h3>
+          <div className="h-80 overflow-y-auto pr-2">
+            <div className="space-y-3">
+              {recentDetections.map((d, i) => {
+                const isThreat = ['Pistol', 'Knife', 'Fire', 'Gun', 'Weapon'].some(t => d.label.toLowerCase().includes(t.toLowerCase()));
+                return (
+                  <div key={d._id} className={`flex items-center gap-4 p-3 rounded-lg border transition-all ${
+                    isThreat ? 'border-red-200 bg-red-50' : 'border-gray-100 hover:bg-gray-50'
+                  }`}>
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${isThreat ? 'bg-red-500 animate-pulse' : 'bg-blue-500'}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-semibold truncate ${isThreat ? 'text-red-700' : 'text-gray-900'}`}>{d.label}</span>
+                        {isThreat && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold tracking-wide">THREAT</span>}
+                      </div>
+                      <p className="text-xs text-gray-500 truncate mt-0.5">{d.camera_name} • {d.detection_time}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className={`text-sm font-bold ${isThreat ? 'text-red-600' : 'text-blue-600'}`}>
+                        {(d.confidence * 100).toFixed(1)}%
+                      </div>
+                      <div className="text-[10px] text-gray-400">{d.detection_date}</div>
+                    </div>
+                  </div>
+                );
+              })}
+              {recentDetections.length === 0 && (
+                <p className="text-center text-gray-500 text-sm py-10">No recent detections</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
